@@ -28,13 +28,14 @@
 #include <string.h>
 #include <stdbool.h>
 #include "LIGHTBLUE_service.h"
+#include "VR_Service.h"
 
 // APP Dependencies
-#include "../rn4870-1-ble-module/rn487x.h"
+#include "rn4870-1-ble-module/rn487x.h"
 #include "BMA253_accel.h"
 #include "MCP9844_temp_sensor.h"
-#include "../pin_manager.h"
-#include "../drivers/uart.h"
+#include "pin_manager.h"
+#include "drivers/uart.h"
 
 /**
 \ingroup LIGHTBLUE
@@ -156,6 +157,7 @@
  \return void \n
 */
 #define NIBBLE_MASK                 (0x01)
+
 /**
  \ingroup LIGHTBLUE
 *! \struct PROTOCOL_PACKET_TYPES_t
@@ -239,7 +241,6 @@ This function is used to read PORT value read from pin connected to PUSH BUTTON 
  \retval Status 0 (OFF) | 1 (ON) \n
  */
 static uint8_t LIGHTBLUE_GetButtonValue(void);
-
 /**
  \ingroup LIGHTBLUE
  \brief  Private function used to request status of DATA LED from reading the PORT value. \n
@@ -248,7 +249,6 @@ This function is used to read PORT value from pin connected to LED masked agains
  \retval Status 0 (OFF) | 1 (ON) \n
  */
 static uint8_t LIGHTBLUE_GetDataLedValue(void);
-
 /**
  \ingroup LIGHTBLUE
  \brief  Private function used to request status of ERROR LED from local maintain variable. \n
@@ -256,7 +256,7 @@ This function is used to return ERROR LED status as the END-DEVICE knows it mask
  \return uint8_t ERROR LED - Status 0 (OFF) | 1 (ON) \n
  \retval Status 0 (OFF) | 1 (ON) \n
  */
-static uint8_t LIGHTBLUE_GetErrorLedValue(void);
+//static uint8_t LIGHTBLUE_GetErrorLedValue(void);
 /**
  \ingroup LIGHTBLUE
  \brief  Private function used to request action from the RN487X module \n
@@ -264,7 +264,7 @@ This function is used to enter device into Command Mode, Update GPIO State, and 
  \param[in] value - bool Set ERROR LED State as ON  \n
  \return void \n
  */
-static void LIGHTBLUE_SetErrorLedValue(bool value);
+//static void LIGHTBLUE_SetErrorLedValue(bool value);
 /**
  \ingroup LIGHTBLUE
  \brief  Private function used process requested actions from the Light Blue application \n
@@ -272,7 +272,7 @@ This function is used to update the state of the ERROR LED which is controlled v
  * RN487X through the GPIO command on the PIC platform. On the AVR board this is MCU (LAT) controlled.
  \return void \n
  */
-static void LIGHTBLUE_UpdateErrorLed(void); 
+static void LIGHTBLUE_UpdateErrorLed(void);
 /**
  \ingroup LIGHTBLUE
  \brief  Private function used process requested actions from the Light Blue application \n
@@ -387,6 +387,7 @@ void LIGHTBLUE_SendSerialData(char* serialData)
     RN487X.Write(TERMINATION_BYTE);
 }
 
+static bool sPacket1stByte = false;
 void LIGHTBLUE_ParseIncomingPacket(char receivedByte)
 {
     static PACKET_PARSER_STATE_t parserState = IDLE;
@@ -402,6 +403,10 @@ void LIGHTBLUE_ParseIncomingPacket(char receivedByte)
             break;
         case PACKET_ID:
             packetID = receivedByte;
+            if (packetID == 'S')
+            {
+                sPacket1stByte = true;
+            }
             parserState = PAYLOAD_SIZE_0;
             break;
         case PAYLOAD_SIZE_0:
@@ -426,10 +431,19 @@ void LIGHTBLUE_ParseIncomingPacket(char receivedByte)
             break;
         case PAYLOAD_1:
             data = (data << 4) + Ascii2Decimal(receivedByte);
+            if ((packetID == 'S') && (sPacket1stByte == true))
+            {
+                sPacket1stByte = false;
+                VR_OpenSerial();
+            }
             LIGHTBLUE_PerformAction(packetID, data);
             length--;
             if (length == 0)
             {
+                if (packetID == 'S')
+                {
+                    VR_CloseSerial();
+                }
                 parserState = IDLE;
             }
             else
@@ -485,12 +499,12 @@ static uint8_t LIGHTBLUE_GetDataLedValue(void)
     return LED_OFF_STATE - DATA_LED_GetValue(); // This is forcing proper data for LightBlue
 }
 
-static uint8_t LIGHTBLUE_GetErrorLedValue(void)
+uint8_t LIGHTBLUE_GetErrorLedValue(void)
 {
     return LED_OFF_STATE - ERROR_LED_VALUE;
 }
 
-static void LIGHTBLUE_SetErrorLedValue(bool value)
+void LIGHTBLUE_SetErrorLedValue(bool value)
 {
     ERROR_LED_VALUE = LED_OFF_STATE - value;
     LIGHTBLUE_UpdateErrorLed();
@@ -529,7 +543,8 @@ static void LIGHTBLUE_PerformAction(char id, uint8_t data)
             }
             break;
         case SERIAL_DATA_ID:
-            uart[UART_CDC].Write(data); // echo out the terminal for now
+//            uart[UART_CDC].Write(data); // echo out the terminal for now
+            VR_SendCharacter(data);
             break;
         default:
             break;

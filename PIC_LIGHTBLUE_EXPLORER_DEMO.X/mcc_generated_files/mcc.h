@@ -54,6 +54,7 @@
 #include "interrupt_manager.h"
 #include "i2c1_driver.h"
 #include "spi2_driver.h"
+#include "tmr2.h"
 #include "tmr0.h"
 #include "eusart2.h"
 #include "eusart1.h"

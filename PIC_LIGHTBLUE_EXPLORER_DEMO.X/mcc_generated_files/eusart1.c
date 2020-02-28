@@ -103,11 +103,11 @@ void EUSART1_Initialize(void)
     // TX9 8-bit; TX9D 0; SENDB sync_break_complete; TXEN enabled; SYNC asynchronous; BRGH hi_speed; CSRC slave; 
     TX1STA = 0x24;
 
-    // SP1BRGL 64; 
-    SP1BRGL = 0x40;
+    // SP1BRGL 68; 
+    SP1BRGL = 0x44;
 
-    // SP1BRGH 3; 
-    SP1BRGH = 0x03;
+    // SP1BRGH 0; 
+    SP1BRGH = 0x00;
 
 
     EUSART1_SetFramingErrorHandler(EUSART1_DefaultFramingErrorHandler);

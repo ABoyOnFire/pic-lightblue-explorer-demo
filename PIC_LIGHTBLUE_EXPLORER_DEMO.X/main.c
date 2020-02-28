@@ -8,10 +8,14 @@
     main.c
 
   Summary:
-    This is the main file generated for use with PIC-Explorer
+    This is the main file generated using PIC10 / PIC12 / PIC16 / PIC18 MCUs
 
   Description:
     This header file provides implementations for driver APIs for all modules selected in the GUI.
+    Generation Information :
+        Product Revision  :  PIC10 / PIC12 / PIC16 / PIC18 MCUs - 1.77
+        Device            :  PIC16LF18456
+        Driver Version    :  2.00
 */
 
 /*
@@ -36,12 +40,14 @@
     OF FEES, IF ANY, THAT YOU HAVE PAID DIRECTLY TO MICROCHIP FOR THIS 
     SOFTWARE.
 */
-
+#include <string.h>
 #include "mcc_generated_files/mcc.h"
-#include "mcc_generated_files/application/LIGHTBLUE_service.h"
-#include "mcc_generated_files/rn4870-1-ble-module/rn487x_interface.h"
-#include "mcc_generated_files/rn4870-1-ble-module/rn487x.h"
-#include "mcc_generated_files/drivers/uart.h"
+#include "application/LIGHTBLUE_service.h"
+#include "rn4870-1-ble-module/rn487x_interface.h"
+#include "rn4870-1-ble-module/rn487x.h"
+#include "drivers/uart.h"
+
+#include "application/VR_Service.h"
 
 /** MACRO used to reference Periodic Timer overflow flag Set. 
  *  This is used by the application to have a semi-accurate 
@@ -65,13 +71,19 @@ static char statusBuffer[MAX_BUFFER_SIZE];      /**< Status Buffer instance pass
 static char lightBlueSerial[MAX_BUFFER_SIZE];   /**< Message Buffer used for CDC Serial communication when connected. Terminated by \r, \n, MAX character Passes messages to BLE for transmisison. */
 static uint8_t serialIndex;                     /**< Local index value for serial communication buffer. */
 
+static uint8_t tmrCount = 0;
+static bool triggerPrint = false;
+static char vrSerial[80];
 /*
                          Main application
  */
-int main(void)
+void main(void)
 {
+    volatile char readByte;
+    volatile bool connected = false;
     // initialize the device
     SYSTEM_Initialize();
+    
     RN487X_SetAsyncMessageHandler(statusBuffer, sizeof(statusBuffer));
 
     // Enable the Global Interrupts
@@ -79,13 +91,14 @@ int main(void)
 
     // Enable the Peripheral Interrupts
     INTERRUPT_PeripheralInterruptEnable();
-
+    
     RN487X_Init();
     LIGHTBLUE_Initialize();
 
     while (1)
-    {
-        if (RN487X_IsConnected() == true)
+    {     
+        connected = RN487X_IsConnected();
+        if (connected == true)
         {
             if (TIMER_FLAG_SET() == true)
             {
@@ -106,17 +119,42 @@ int main(void)
                 while (uart[UART_CDC].DataReady())
                 {
                     lightBlueSerial[serialIndex] = uart[UART_CDC].Read();
+                    readByte = lightBlueSerial[serialIndex];
+                    
                     if ((lightBlueSerial[serialIndex] == '\r')
                         || (lightBlueSerial[serialIndex] == '\n')
                         || (serialIndex == (sizeof(lightBlueSerial) - 1)))
                     {
                         lightBlueSerial[serialIndex] = '\0';
+                        strcpy(vrSerial, lightBlueSerial);
                         LIGHTBLUE_SendSerialData(lightBlueSerial);
+                        VR_SerialData(vrSerial);
+                        strcpy(vrSerial, lightBlueSerial);
                         serialIndex = 0;
                     }
                     else
                     {
                         serialIndex++;
+                    }
+                    if (readByte == '0')
+                    {
+                        DATA_LED_SetHigh();
+                    }
+                    else if (readByte == '1')
+                    {
+                        DATA_LED_SetLow();
+                    }
+                    else if (readByte == '3')
+                    {
+                        LIGHTBLUE_SetErrorLedValue(false);
+                    }
+                    else if (readByte == '4')
+                    {
+                        LIGHTBLUE_SetErrorLedValue(true);
+                    }
+                    else
+                    {
+                        // 
                     }
                 }
                 
@@ -133,8 +171,31 @@ int main(void)
                 RN487X.Write(uart[UART_CDC].Read());
             }
         }
+        if (TMR2_HasOverflowOccured() == true)
+        {
+            tmrCount++;
+            if (connected == false)
+            {
+                if (tmrCount > 2)
+                {
+                    triggerPrint = true;
+                }
+            }
+            else
+            {
+                if (tmrCount > 5)
+                {
+                    triggerPrint = true;
+                }
+            }
+            if (triggerPrint == true)
+            {
+                VR_AllData(connected);
+                triggerPrint = false;
+                tmrCount = 0;
+            }
+        }
     }
-    return 0;
 }
 /**
  End of File

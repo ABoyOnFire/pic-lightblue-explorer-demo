@@ -26,6 +26,7 @@
 
 #ifndef LIGHTBLUE_SERVICE_H
 #define	LIGHTBLUE_SERVICE_H
+#include <stdbool.h>
 
 /**
  \ingroup LIGHTBLUE
@@ -124,6 +125,9 @@ Packet ID Options:
  \return void \n
  */
 void LIGHTBLUE_ParseIncomingPacket(char receivedByte);
+
+uint8_t LIGHTBLUE_GetErrorLedValue(void);
+void LIGHTBLUE_SetErrorLedValue(bool value);
 
 #endif	/* LIGHTBLUE_SERVICE_H */
 
